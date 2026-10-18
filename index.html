@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101426">
+<meta name="description" content="مايا، مساعد عربي صوتي تجريبي يعمل من المتصفح.">
+<title>Maya AI — مايا</title>
+<style>
+:root{color-scheme:dark;--bg:#101426;--panel:#1b2340;--line:#344160;--a:#40e0d0;--b:#8d72ff;--txt:#f5f6ff;--muted:#b8c2df}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#20254b 0,var(--bg) 55%);color:var(--txt);font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;min-height:100vh}
+main{width:min(720px,100%);margin:auto;padding:20px 16px calc(28px + env(safe-area-inset-bottom))}
+header{text-align:center;padding:22px 0 20px}.orb{width:84px;height:84px;margin:auto;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,var(--b),var(--a));color:#11182b;font-size:40px;box-shadow:0 0 35px #8d72ff55}h1{font-size:28px;margin:14px 0 5px}.sub{color:var(--muted);font-size:14px}
+.card{background:#1b2340eF;border:1px solid var(--line);border-radius:20px;padding:15px;margin:12px 0;box-shadow:0 10px 32px #0002}
+#chat{height:min(44vh,390px);min-height:220px;overflow:auto;scroll-behavior:smooth}.msg{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.75;padding:12px 14px;border-radius:16px;margin:10px 0;max-width:94%}.maya{background:#293653;border:1px solid #394969;margin-left:7%}.you{background:#54459d;margin-right:7%;border:1px solid #7868c8}
+#status{font-size:13px;color:var(--a);min-height:24px;padding:4px 2px}.entry{display:flex;gap:8px}input{min-width:0;flex:1;background:#10182c;color:var(--txt);border:1px solid #455273;border-radius:13px;padding:14px;font-size:16px;outline:none}input:focus{border-color:var(--a)}button{font:inherit;font-weight:700;border:0;border-radius:13px;padding:12px 14px;cursor:pointer;touch-action:manipulation}button:focus-visible{outline:2px solid white;outline-offset:3px}.primary{background:var(--a);color:#101827}.purple{background:var(--b);color:white}.dark{background:#34415f;color:white}.actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px}.actions button:first-child{grid-column:1/-1}.note{font-size:12px;line-height:1.8;color:var(--muted)}a{color:var(--a)}.tiny{text-align:center;font-size:12px;color:var(--muted);padding:8px}
+@media(max-width:380px){main{padding:12px}.entry{flex-wrap:wrap}input{flex-basis:100%}.actions{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<main>
+<header><div class="orb" aria-hidden="true">✦</div><h1>Maya AI <span style="color:#40e0d0">مايا</span></h1><div class="sub">مساعدتك العربية — نسخة ويب تجريبية</div></header>
+<section class="card"><div id="chat" aria-live="polite"><div class="msg maya">أهلًا بك! أنا مايا 🌷<br>يمكنك الكتابة أو الضغط على الميكروفون للتحدث معي.</div></div><div id="status" role="status">جاهزة. اضغط على الميكروفون لبدء الاستماع.</div></section>
+<section class="card"><div class="entry"><input id="message" autocomplete="off" placeholder="اكتب رسالتك إلى مايا..." aria-label="رسالتك"><button id="send" class="purple">إرسال</button></div><div class="actions"><button id="mic" class="primary">🎙️ تحدث مع مايا</button><button id="repeat" class="dark">🔊 أعد الرد الصوتي</button></div></section>
+<section class="card"><b>معلومات مهمة</b><p class="note">هذه النسخة مجانية وتعمل كصفحة ويب. الردود في هذا الإصدار تجريبية ومحددة مسبقًا وليست ذكاءً اصطناعيًا متصلًا بالإنترنت. التعرف على الكلام يعتمد على دعم Chrome وخدمات الجهاز، وقد يحتاج اتصالًا بالإنترنت. لا تستمع الصفحة باستمرار ولا تعمل ككلمة تنبيه في الخلفية.</p><p class="note">لا ترسل معلومات شخصية حساسة عبر الميكروفون. لا تحتوي الصفحة على مفاتيح API أو خدمات مدفوعة.</p></section>
+<div class="tiny">Maya AI • صُممت لتناسب شاشة الهاتف</div>
+</main>
+<script>
+(function(){
+const chat=document.getElementById('chat'),input=document.getElementById('message'),status=document.getElementById('status');
+let lastReply='أهلًا بك! أنا مايا، كيف يمكنني مساعدتك؟';
+function add(text,who){const el=document.createElement('div');el.className='msg '+who;el.textContent=text;chat.appendChild(el);chat.scrollTop=chat.scrollHeight}
+function answer(text){const t=text.toLocaleLowerCase('ar');if(/سلام|مرحبا|مرحبًا|أهلا|اهلا/.test(t))return'أهلًا وسهلًا بك 🌷 يسعدني التحدث معك. كيف حالك اليوم؟';if(/حزين|تعبان|متضايق|قلق|خائف/.test(t))return'أنا هنا لأستمع إليك دون حكم. خذ وقتك وأخبرني بما يشغلك، وسنفكر فيه خطوة بخطوة.';if(/اسمك|من أنت|من انت/.test(t))return'أنا مايا، مساعدتك العربية التجريبية. أستطيع حاليًا تجربة المحادثة الصوتية والردود الأساسية.';if(/شكرا|شكرًا|ممتن/.test(t))return'العفو، يسعدني أن أساعدك!';if(/يا مايا/.test(t))return'نعم، أنا معك. تفضل، أسمعك.';if(/الطقس|أخبار|نتائج|ابحث/.test(t))return'هذه النسخة غير متصلة بعد بمحرك بحث أو ذكاء اصطناعي مباشر. يمكننا إضافة خدمة ذكية لاحقًا عبر خادم آمن.';return'وصلتني رسالتك: «'+text+'». ما زلت في النسخة التجريبية، لذلك لا أستطيع الإجابة عن كل الأسئلة بذكاء بعد.'}
+function speak(text){if(!('speechSynthesis'in window)){status.textContent='الصوت الناطق غير مدعوم في هذا المتصفح.';return}window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='ar-SA';u.rate=.92;const voices=window.speechSynthesis.getVoices();const v=voices.find(x=>x.lang&&x.lang.toLowerCase().startsWith('ar'));if(v)u.voice=v;u.onstart=()=>status.textContent='مايا تتحدث الآن…';u.onend=()=>status.textContent='جاهزة للمحادثة.';window.speechSynthesis.speak(u)}
+function send(text){text=(text||'').trim();if(!text)return;add(text,'you');lastReply=answer(text);add(lastReply,'maya');input.value='';speak(lastReply)}
+document.getElementById('send').addEventListener('click',()=>send(input.value));input.addEventListener('keydown',e=>{if(e.key==='Enter')send(input.value)});document.getElementById('repeat').addEventListener('click',()=>speak(lastReply));
+document.getElementById('mic').addEventListener('click',()=>{const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){status.textContent='التعرف على الكلام غير مدعوم في هذا المتصفح. استخدم الكتابة أو جرّب Chrome محدثًا.';return}const rec=new SR();rec.lang='ar-DZ';rec.continuous=false;rec.interimResults=false;rec.onstart=()=>status.textContent='أستمع إليك الآن… تحدث بوضوح.';rec.onresult=e=>send(e.results[0][0].transcript);rec.onerror=e=>{status.textContent='تعذر تشغيل الميكروفون ('+e.error+'). تحقق من الإذن والإنترنت.'};rec.onend=()=>{if(status.textContent.includes('أستمع'))status.textContent='انتهى الاستماع. اضغط للتحدث مجددًا.'};try{rec.start()}catch(e){status.textContent='تعذر بدء الميكروفون. حاول مرة أخرى.'}});
+})();
+</script>
+</body></html>
