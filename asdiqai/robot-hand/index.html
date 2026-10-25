@@ -11,15 +11,79 @@
 <section><div class="controls"><button class="btn primary" id="start">📷 تشغيل الكاميرا</button><button class="btn" id="stop" disabled>إيقاف</button><button class="btn" id="reset">إعادة ضبط الروبوت</button></div><div class="status" id="status" role="status" style="margin-top:12px">الحالة: جاهز — اضغط تشغيل الكاميرا واسمح بالوصول إليها.</div><div class="small">طريقة الحركة: حرّك يدك يمينًا ويسارًا لتدوير الروبوت، وارفع أو اخفض يدك لتحريك الذراعين. افتح كفك لإظهار وضع الطاقة.</div></section>
 <section class="camwrap" id="camwrap"><video id="video" playsinline muted></video><canvas id="overlay"></canvas></section>
 <p class="small">تحتاج الصفحة إلى الإنترنت لتحميل مكتبة تتبع اليد وإلى إذن الكاميرا. يجب فتحها عبر HTTPS. إذا لم تعمل الكاميرا، جرّب السماح بها من إعدادات الموقع في Chrome.</p></main>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script><script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous" onerror="window.handLibFailed=true"></script>
 <script>
-const $=id=>document.getElementById(id), video=$('video'), status=$('status'), robot=$('robot');let camera=null,hands=null,active=false,lastSeen=0;
+const $=id=>document.getElementById(id), video=$('video'), status=$('status'), robot=$('robot');
+let hands=null, stream=null, active=false, frameBusy=false, rafId=0, lastSeen=0;
 function say(s){status.textContent='الحالة: '+s}
-function pose(x=.5,y=.5,open=false){const yaw=(.5-x)*100,tilt=(.5-y)*28;robot.style.transform='rotateY('+yaw+'deg) rotateZ('+((x-.5)*12)+'deg)';$('armL').style.transform='rotate('+(18+tilt+(open?-25:0))+'deg)';$('armR').style.transform='rotate('+(-18+tilt+(open?25:0))+'deg)';$('foreL').style.transform='rotate('+(8+tilt*.7)+'deg)';$('foreR').style.transform='rotate('+(-8+tilt*.7)+'deg)';$('core').style.boxShadow=open?'0 0 28px #ffe56b,0 0 55px #ff8c00':'0 0 20px #38dfff,0 0 45px #1399ff80'}
+function pose(x=.5,y=.5,open=false){
+ const yaw=(.5-x)*100,tilt=(.5-y)*28;
+ robot.style.transform='rotateY('+yaw+'deg) rotateZ('+((x-.5)*12)+'deg)';
+ $('armL').style.transform='rotate('+(18+tilt+(open?-25:0))+'deg)';
+ $('armR').style.transform='rotate('+(-18+tilt+(open?25:0))+'deg)';
+ $('foreL').style.transform='rotate('+(8+tilt*.7)+'deg)';
+ $('foreR').style.transform='rotate('+(-8+tilt*.7)+'deg)';
+ $('core').style.boxShadow=open?'0 0 28px #ffe56b,0 0 55px #ff8c00':'0 0 20px #38dfff,0 0 45px #1399ff80';
+}
 function reset(){pose();say(active?'الكاميرا تعمل — حرّك يدك أمامها':'جاهز — اضغط تشغيل الكاميرا')}
-function onResults(results){const c=$('overlay'),ctx=c.getContext('2d');c.width=video.videoWidth||640;c.height=video.videoHeight||480;ctx.clearRect(0,0,c.width,c.height);if(results.multiHandLandmarks&&results.multiHandLandmarks.length){const lm=results.multiHandLandmarks[0];lastSeen=Date.now();const x=1-lm[9].x,y=lm[9].y;const fingers=[[8,6],[12,10],[16,14],[20,18]].filter(([tip,mid])=>lm[tip].y<lm[mid].y).length;pose(x,y,fingers>=3);ctx.fillStyle='#63efff';ctx.strokeStyle='#63efff';ctx.lineWidth=3;for(const p of lm){ctx.beginPath();ctx.arc((1-p.x)*c.width,p.y*c.height,4,0,Math.PI*2);ctx.fill()}say(fingers>=3?'تم رصد كف مفتوح — وضع الطاقة!':'تم رصد اليد — الروبوت يتحرك');}else if(Date.now()-lastSeen>1400){say('الكاميرا تعمل — قرّب يدك إلى مجال الرؤية');}}
-async function start(){if(active)return;try{if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw Error('المتصفح لا يتيح الكاميرا هنا. افتح الرابط الآمن HTTPS في Chrome.');if(!window.Hands||!window.Camera)throw Error('تعذّر تحميل مكتبة تتبع اليد. تحقق من الإنترنت ثم أعد المحاولة.');say('جارٍ طلب إذن الكاميرا...');$('camwrap').classList.add('show');hands=new Hands({locateFile:file=>'https://cdn.jsdelivr.net/npm/@mediapipe/hands/'+file});hands.setOptions({maxNumHands:1,modelComplexity:0,minDetectionConfidence:.55,minTrackingConfidence:.5});hands.onResults(onResults);camera=new Camera(video,{onFrame:async()=>{if(active&&hands)await hands.send({image:video})},width:640,height:480});await camera.start();active=true;$('start').disabled=true;$('stop').disabled=false;say('الكاميرا تعمل — حرّك يدك أمامها');}catch(e){active=false;$('start').disabled=false;$('stop').disabled=true;say(e.message||'لم تعمل الكاميرا. تحقق من الإذن والإنترنت.');}}
-function stop(){active=false;if(camera){camera.stop();camera=null}if(hands){hands.close();hands=null}video.srcObject=null;$('camwrap').classList.remove('show');$('start').disabled=false;$('stop').disabled=true;reset()}
+function onResults(results){
+ const c=$('overlay'),ctx=c.getContext('2d');
+ if(!video.videoWidth)return;
+ if(c.width!==video.videoWidth)c.width=video.videoWidth;
+ if(c.height!==video.videoHeight)c.height=video.videoHeight;
+ ctx.clearRect(0,0,c.width,c.height);
+ if(results.multiHandLandmarks&&results.multiHandLandmarks.length){
+  const lm=results.multiHandLandmarks[0];lastSeen=Date.now();
+  const x=1-lm[9].x,y=lm[9].y;
+  const fingers=[[8,6],[12,10],[16,14],[20,18]].filter(([tip,mid])=>lm[tip].y<lm[mid].y).length;
+  pose(x,y,fingers>=3);
+  ctx.fillStyle='#63efff';ctx.strokeStyle='#63efff';ctx.lineWidth=3;
+  for(const p of lm){ctx.beginPath();ctx.arc((1-p.x)*c.width,p.y*c.height,4,0,Math.PI*2);ctx.fill()}
+  say(fingers>=3?'تم رصد كف مفتوح — وضع الطاقة!':'تم رصد اليد — الروبوت يتحرك');
+ }else if(Date.now()-lastSeen>1400){say('الكاميرا تعمل — قرّب يدك إلى مجال الرؤية');}
+}
+async function frameLoop(){
+ if(!active)return;
+ if(hands&&!frameBusy&&video.readyState>=2){
+  frameBusy=true;
+  try{await hands.send({image:video})}catch(e){say('تعذر تحليل الصورة. أوقف الكاميرا ثم أعد تشغيلها.')}
+  finally{frameBusy=false}
+ }
+ rafId=requestAnimationFrame(frameLoop);
+}
+async function start(){
+ if(active)return;
+ try{
+  say('جارٍ تحميل مكتبة تتبع اليد...');
+  if(!window.Hands)throw Error('لم تُحمّل مكتبة تتبع اليد. تأكد من الإنترنت ثم أعد فتح الصفحة.');
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw Error('الكاميرا غير متاحة. افتح الموقع عبر HTTPS في Chrome.');
+  $('camwrap').classList.add('show');
+  stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:'user',width:{ideal:640},height:{ideal:480}}});
+  video.srcObject=stream;video.muted=true;video.playsInline=true;
+  await video.play();
+  say('جارٍ تشغيل التتبع...');
+  hands=new Hands({locateFile:file=>'https://cdn.jsdelivr.net/npm/@mediapipe/hands/'+file});
+  hands.setOptions({maxNumHands:1,modelComplexity:0,minDetectionConfidence:.5,minTrackingConfidence:.5});
+  hands.onResults(onResults);
+  active=true;$('start').disabled=true;$('stop').disabled=false;
+  say('الكاميرا تعمل — ضع يدك كاملة أمامها');
+  rafId=requestAnimationFrame(frameLoop);
+ }catch(e){
+  active=false;
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+  video.srcObject=null;
+  if(hands){try{hands.close()}catch(_){}hands=null}
+  $('start').disabled=false;$('stop').disabled=true;
+  say(e.name==='NotAllowedError'?'تم رفض إذن الكاميرا. اسمح للصفحة باستخدام الكاميرا من إعدادات Chrome ثم أعد المحاولة.':(e.message||'لم تعمل الكاميرا. تحقق من الإنترنت وإذن الكاميرا.'));
+ }
+}
+function stop(){
+ active=false;if(rafId)cancelAnimationFrame(rafId);
+ if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+ if(hands){try{hands.close()}catch(_){}hands=null}
+ video.pause();video.srcObject=null;
+ $('camwrap').classList.remove('show');$('start').disabled=false;$('stop').disabled=true;reset();
+}
 $('start').addEventListener('click',start);$('stop').addEventListener('click',stop);$('reset').addEventListener('click',reset);
-window.addEventListener('pagehide',()=>{if(camera)camera.stop()});reset();
+window.addEventListener('pagehide',()=>{active=false;if(stream)stream.getTracks().forEach(t=>t.stop())});reset();
 </script></body></html>
