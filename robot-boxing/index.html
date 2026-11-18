@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#071321"><title>روبوت الملاكمة — تحكم باليدين</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#071321;color:#eaf4ff;font-family:system-ui,Arial;overflow:hidden}
+#scene{position:fixed;inset:0;width:100%;height:100%}#hud{position:fixed;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:10px}
+header,.panel{background:#081526df;border:1px solid #2c5278;border-radius:14px;padding:10px 12px;backdrop-filter:blur(8px)}
+header{display:flex;justify-content:space-between;align-items:center;gap:8px}h1{font-size:17px;margin:0;color:#72d9ff}.sub{font-size:11px;color:#9bb4cb}#status{font-size:12px;color:#ffd36e}
+.bottom{display:flex;gap:8px;align-items:end;justify-content:space-between}.panel{max-width:70%;font-size:12px;line-height:1.7}
+#video{width:105px;height:78px;object-fit:cover;border-radius:10px;transform:scaleX(-1);border:1px solid #3a83b7;background:#111}
+button{pointer-events:auto;border:0;border-radius:12px;padding:13px 16px;background:#087eaa;color:white;font-weight:700;font-size:14px}
+#start{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:5;box-shadow:0 8px 35px #0009;white-space:nowrap}
+#hint{color:#9db8d0;font-size:11px}@media(max-width:600px){#hud{padding:7px}.panel{max-width:70%;font-size:11px}#video{width:88px;height:68px}h1{font-size:15px}}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script></head><body>
+<canvas id="scene"></canvas><button id="start">📷 تشغيل الكاميرا وبدء القتال</button>
+<div id="hud"><header><div><h1>🥊 روبوت الملاكمة</h1><div class="sub">محاكاة 3D • تحكم بإيماءات اليد</div></div><div id="status">في انتظار تشغيل الكاميرا</div></header>
+<div class="bottom"><div class="panel"><b>حركات التحكم</b><br>قبضة مع حركة سريعة: لكمة • كف مفتوح: دفاع<br>مسح اليد أفقياً: ركلة جانبية<br>ارفع اليدين معاً: قفز<div id="move">الحركة: استعداد</div><div id="hint">قف أمام الكاميرا مع إضاءة جيدة واسمح بالوصول إليها.</div></div><video id="video" playsinline muted></video></div></div>
+<script type="module">
+import * as THREE from 'three';
+const canvas=document.querySelector('#scene'),statusEl=document.querySelector('#status'),moveEl=document.querySelector('#move'),video=document.querySelector('#video');
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x081321);scene.fog=new THREE.Fog(0x081321,9,23);
+const camera=new THREE.PerspectiveCamera(42,innerWidth/innerHeight,.1,100);camera.position.set(0,3.4,10.5);camera.lookAt(0,1.55,0);
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.35));renderer.setSize(innerWidth,innerHeight);
+scene.add(new THREE.HemisphereLight(0xaadfff,0x192338,2));const key=new THREE.DirectionalLight(0xffffff,2.5);key.position.set(4,8,6);scene.add(key);
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(30,30),new THREE.MeshStandardMaterial({color:0x101e31,roughness:.9}));floor.rotation.x=-Math.PI/2;floor.position.y=0;scene.add(floor);
+const grid=new THREE.GridHelper(20,30,0x1c5b7c,0x17314a);grid.position.y=.015;scene.add(grid);
+const ring=new THREE.Mesh(new THREE.CylinderGeometry(3.1,3.1,.12,64,1,true),new THREE.MeshBasicMaterial({color:0x167ba5,wireframe:true}));ring.position.y=.07;scene.add(ring);
+const mat=(c,m=.25)=>new THREE.MeshStandardMaterial({color:c,metalness:m,roughness:.4}),blue=mat(0x168dc1,.65),dark=mat(0x17283c,.7),gold=mat(0xffb52e,.55),glow=mat(0x53e5ff,.3);
+function ball(parent,m,pos,scale){const o=new THREE.Mesh(new THREE.SphereGeometry(1,18,14),m);o.position.set(...pos);o.scale.set(...scale);parent.add(o);return o}
+function limb(parent,m,a,b,r1,r2){const A=new THREE.Vector3(...a),B=new THREE.Vector3(...b),d=B.clone().sub(A);const o=new THREE.Mesh(new THREE.CylinderGeometry(r2,r1,d.length(),14),m);o.position.copy(A.add(B).multiplyScalar(.5));o.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());parent.add(o);return o}
+const robot=new THREE.Group();scene.add(robot);
+ball(robot,dark,[0,1.55,0],[.55,.72,.32]);ball(robot,blue,[0,2.35,0],[.42,.43,.38]);ball(robot,glow,[0,2.39,.34],[.23,.09,.055]);
+limb(robot,dark,[-.35,1.9,0],[-.72,1.45,0],.2,.16);limb(robot,dark,[.35,1.9,0],[.72,1.45,0],.2,.16);
+const arms=[],legs=[];
+for(const s of [-1,1]){const sh=new THREE.Group();sh.position.set(s*.42,1.98,0);robot.add(sh);limb(sh,blue,[0,0,0],[s*.22,-.35,.02],.19,.15);limb(sh,dark,[s*.22,-.35,.02],[s*.18,-.68,.22],.15,.12);ball(sh,gold,[s*.18,-.76,.28],[.19,.17,.18]);arms.push(sh)}
+for(const s of [-1,1]){const hip=new THREE.Group();hip.position.set(s*.23,1.05,0);robot.add(hip);limb(hip,blue,[0,0,0],[s*.03,-.48,0],.22,.16);limb(hip,dark,[s*.03,-.48,0],[0,-.93,.06],.16,.12);ball(hip,gold,[0,-.98,.22],[.2,.12,.34]);legs.push(hip)}
+const foe=new THREE.Group();foe.position.set(0,0,-4);scene.add(foe);ball(foe,mat(0x8e324d),[0,1.55,0],[.52,.7,.32]);ball(foe,mat(0xb54a65),[0,2.35,0],[.4,.4,.36]);
+for(const s of [-1,1]){limb(foe,mat(0x8e324d),[s*.35,1.9,0],[s*.65,1.45,.1],.18,.14);ball(foe,gold,[s*.65,1.4,.2],[.17,.16,.18]);limb(foe,mat(0x8e324d),[s*.22,1.05,0],[s*.25,.25,0],.2,.15);limb(foe,dark,[s*.25,.25,0],[s*.28,.08,.2],.15,.12)}
+const state={action:'idle',until:0,jump:0,guard:false};let prev=[],lastAction=0;
+function act(a){const now=performance.now();if(now-lastAction<450)return;lastAction=now;state.action=a;state.until=now+520;moveEl.textContent='الحركة: '+a}
+function animate(t){requestAnimationFrame(animate);const now=performance.now(),active=now<state.until;const punch=active&&state.action.includes('لكمة'),kick=active&&state.action.includes('ركلة');
+arms.forEach((a,i)=>{const sign=i===0?-1:1;a.rotation.x=state.guard?-.8:0;a.rotation.z=(state.guard?sign*.45:0)+(punch&&((state.action.includes('يسرى')&&i===0)||(state.action.includes('يمنى')&&i===1))?-1.15:0)});
+legs.forEach((l,i)=>{l.rotation.x=kick&&(i===(state.action.includes('يسرى')?0:1)?-.95:0)});robot.position.y=state.jump;robot.rotation.y=Math.sin(t*.0005)*.06;
+if(!active&&state.action!=='idle'){state.action='idle';moveEl.textContent='الحركة: استعداد'}renderer.render(scene,camera)}
+requestAnimationFrame(animate);
+function fist(l){return [8,12,16,20].filter((v,i)=>l[v].y>l[[6,10,14,18][i]].y).length>=3}
+function openHand(l){return [8,12,16,20].filter((v,i)=>l[v].y<l[[6,10,14,18][i]].y).length>=3}
+async function start(){try{statusEl.textContent='جارٍ تحميل نموذج تتبع اليدين…';
+const vision=await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm');
+const files=await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+const tracker=await vision.HandLandmarker.createFromOptions(files,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',delegate:'GPU'},runningMode:'VIDEO',numHands:2});
+const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false});video.srcObject=stream;await video.play();document.querySelector('#start').style.display='none';statusEl.textContent='الكاميرا تعمل • تحرك أمامها';
+function loop(){if(video.readyState>=2){const hands=tracker.detectForVideo(video,performance.now()).landmarks||[];state.guard=hands.some(openHand);let raised=0;
+hands.forEach((l,i)=>{const p=l[9],old=prev[i];if(p.y<.32)raised++;if(old){const dx=p.x-old.x,dy=p.y-old.y;if(fist(l)&&Math.abs(dy)>.075)act(i===0?'لكمة يسرى':'لكمة يمنى');else if(Math.abs(dx)>.15&&Math.abs(dx)>Math.abs(dy)*1.15)act(dx>0?'ركلة يمنى':'ركلة يسرى')}});
+if(hands.length===2&&raised===2){state.jump=.5;act('قفز')}else state.jump*=.86;
+prev=hands.map(l=>l.map(p=>({x:p.x,y:p.y})));statusEl.textContent=hands.length?'تم رصد '+hands.length+' يد • '+(state.guard?'دفاع':'استعداد'):'لم تُكتشف اليدان'}
+requestAnimationFrame(loop)}loop();
+}catch(e){statusEl.textContent='تعذر تشغيل الكاميرا';document.querySelector('#hint').textContent='تأكد من فتح الرابط عبر HTTPS ومنح إذن الكاميرا. '+e.message}}
+document.querySelector('#start').addEventListener('click',start);
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+</script></body></html>
